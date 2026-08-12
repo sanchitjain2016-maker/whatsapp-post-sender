@@ -427,9 +427,9 @@ export function WhatsAppBroadcaster() {
             <label>
               Schedule date time
               <input
+                type="datetime-local"
                 value={scheduleDateTime}
                 onChange={(event) => setScheduleDateTime(event.target.value)}
-                placeholder="Optional"
               />
             </label>
           </div>
