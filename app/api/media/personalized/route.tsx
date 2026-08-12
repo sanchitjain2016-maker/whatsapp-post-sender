@@ -44,28 +44,28 @@ export async function GET(request: Request) {
         <div
           style={{
             position: "absolute",
-            top: "58px",
-            left: "418px",
-            width: "314px",
-            height: "104px",
+            top: "882px",
+            left: "145px",
+            width: "220px",
+            height: "76px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             textAlign: "center",
             wordBreak: "break-word",
-            padding: "12px 18px 14px",
+            padding: "8px 12px 10px",
           }}
         >
           <div
             style={{
               display: "flex",
               color: "#d14a87",
-              fontSize: "16px",
+              fontSize: "12px",
               fontWeight: 800,
               letterSpacing: "0.4px",
               lineHeight: 1,
-              marginBottom: "7px",
+              marginBottom: "5px",
               textTransform: "uppercase",
             }}
           >
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
               display: "flex",
               color: "#143f86",
               fontFamily: "Arial, Helvetica, sans-serif",
-              fontSize: "31px",
+              fontSize: "22px",
               fontWeight: 800,
               lineHeight: 1.05,
             }}
