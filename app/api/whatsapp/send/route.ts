@@ -112,20 +112,37 @@ export async function POST(request: Request) {
       body: JSON.stringify(requestBody),
     });
 
-    const result = (await response.json().catch(() => ({}))) as {
-      message?: string;
-      error?: string;
-      status?: string;
-    };
+    const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
     if (!response.ok) {
       return Response.json(
-        { error: result.error ?? result.message ?? "VirtualPrachar send failed." },
+        { error: String(result.error ?? result.message ?? "VirtualPrachar send failed."), providerResponse: result },
         { status: response.status || 502 },
       );
     }
 
-    return Response.json({ result });
+    const providerStatus = String(result.status ?? result.success ?? result.code ?? "").toLowerCase();
+    const providerMessage = String(result.message ?? result.error ?? "");
+    const providerText = `${providerStatus} ${providerMessage}`.toLowerCase();
+
+    if (
+      providerStatus === "false" ||
+      providerStatus === "failed" ||
+      providerStatus === "error" ||
+      providerText.includes("invalid") ||
+      providerText.includes("fail") ||
+      providerText.includes("error")
+    ) {
+      return Response.json(
+        {
+          error: providerMessage || "VirtualPrachar did not accept this message.",
+          providerResponse: result,
+        },
+        { status: 502 },
+      );
+    }
+
+    return Response.json({ result, sentPayload: requestBody });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "VirtualPrachar send failed." },

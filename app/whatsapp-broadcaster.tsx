@@ -283,6 +283,16 @@ export function WhatsAppBroadcaster() {
       return;
     }
 
+    const rowsWithMissingParams = validRows.filter((item) => !item.bodyParam1.trim() || !item.bodyParam2.trim());
+    if (rowsWithMissingParams.length) {
+      setSendState((current) => ({
+        ...current,
+        status: "error",
+        log: ["Body param 1 and body param 2 are required for this template."],
+      }));
+      return;
+    }
+
     setImageCheckMessage("Checking image URL before send...");
     const mediaCheckResponse = await fetch("/api/media/check", {
       method: "POST",
@@ -334,10 +344,11 @@ export function WhatsAppBroadcaster() {
           scheduleDateTime,
         }),
       });
-      const result = (await response.json()) as { error?: string; result?: unknown };
+      const result = (await response.json()) as { error?: string; result?: unknown; providerResponse?: unknown };
 
       if (!response.ok) {
-        const detail = result.error ?? "Failed";
+        const providerDetail = result.providerResponse ? ` ${JSON.stringify(result.providerResponse)}` : "";
+        const detail = `${result.error ?? "Failed"}${providerDetail}`;
         log.push(`${item.name}: ${detail}`);
         setRecipientStatuses((current) =>
           current.map((entry) =>
