@@ -155,6 +155,7 @@ export function WhatsAppBroadcaster() {
           previewRecipient.name,
         )}`
       : "";
+  const shouldShowSourcePreview = cleanMediaLink && (!personalizedPreviewUrl || imagePreviewError);
 
   useEffect(() => {
     setIsAuthenticated(window.localStorage.getItem("whatsapp-sender-auth") === "true");
@@ -672,8 +673,18 @@ export function WhatsAppBroadcaster() {
                   src={personalizedPreviewUrl}
                   alt="Personalized post preview"
                   onLoad={() => setImagePreviewError("")}
-                  onError={() => setImagePreviewError("Preview could not load. Use a direct public image URL.")}
+                  onError={() => setImagePreviewError("Personalized preview could not load. Showing the original image.")}
                 />
+              ) : shouldShowSourcePreview ? (
+                <div className="source-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={cleanMediaLink}
+                    alt="Post background preview"
+                    onError={() => setImagePreviewError("Direct image URL could not load in the browser.")}
+                  />
+                  {imagePreviewError ? <span className="preview-fallback-note">{imagePreviewError}</span> : null}
+                </div>
               ) : imagePreviewError ? (
                 <div className="preview-message">
                   <strong>Image preview unavailable</strong>

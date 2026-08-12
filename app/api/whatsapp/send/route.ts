@@ -12,15 +12,20 @@ type SendPayload = {
 const virtualPracharUrl =
   "https://api.virtualprachar.com/api/whatsapp-business/v1/send-template-message";
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+const imageRequestHeaders = {
+  Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+};
 
 async function validateMediaLink(mediaLink: string) {
-  const headResponse = await fetch(mediaLink, { method: "HEAD" }).catch(() => null);
+  const headResponse = await fetch(mediaLink, { method: "HEAD", headers: imageRequestHeaders }).catch(() => null);
   const response =
     headResponse?.ok
       ? headResponse
       : await fetch(mediaLink, {
           method: "GET",
-          headers: { Range: "bytes=0-1023" },
+          headers: { ...imageRequestHeaders, Range: "bytes=0-1023" },
         });
 
   if (!response.ok) {

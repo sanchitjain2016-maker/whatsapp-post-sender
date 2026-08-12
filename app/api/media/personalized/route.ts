@@ -1,6 +1,11 @@
 import sharp from "sharp";
 
 const canvasSize = 1080;
+const imageRequestHeaders = {
+  Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+};
 
 type Box = {
   x: number;
@@ -142,7 +147,7 @@ export async function GET(request: Request) {
 
   try {
     new URL(sourceUrl);
-    const imageResponse = await fetch(sourceUrl);
+    const imageResponse = await fetch(sourceUrl, { headers: imageRequestHeaders });
     if (!imageResponse.ok) {
       return Response.json(
         { error: `Source image could not be loaded. Status ${imageResponse.status}.` },
