@@ -19,6 +19,16 @@ type RecipientStatus = {
   detail: string;
 };
 
+type ScheduledPostRecord = {
+  id: string;
+  createdAt: string;
+  campaignName: string;
+  scheduleDateTime: string;
+  mediaLink: string;
+  messageText: string;
+  recipients: RecipientStatus[];
+};
+
 const defaultTemplateId = "2118674012004505";
 const savedStateKey = "virtualprachar-post-sender-settings";
 
@@ -33,6 +43,7 @@ type SavedState = {
   mediaLink?: string;
   messageText?: string;
   scheduleDateTime?: string;
+  scheduledPosts?: ScheduledPostRecord[];
 };
 
 function normalizePhone(value: string) {
@@ -90,6 +101,7 @@ function downloadCsv(
 }
 
 export function WhatsAppBroadcaster() {
+  const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false);
   const [rows, setRows] = useState<ContactRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [nameColumn, setNameColumn] = useState("");
@@ -105,6 +117,7 @@ export function WhatsAppBroadcaster() {
   const [imageCheckMessage, setImageCheckMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [scheduleDateTime, setScheduleDateTime] = useState("");
+  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPostRecord[]>([]);
   const [recipientStatuses, setRecipientStatuses] = useState<RecipientStatus[]>([]);
   const [sendState, setSendState] = useState<SendState>({
     status: "ready",
@@ -142,6 +155,7 @@ export function WhatsAppBroadcaster() {
   useEffect(() => {
     const saved = window.localStorage.getItem(savedStateKey);
     if (!saved) {
+      setHasLoadedSavedState(true);
       return;
     }
 
@@ -157,11 +171,49 @@ export function WhatsAppBroadcaster() {
       setMediaLink(parsed.mediaLink ?? "");
       setMessageText(parsed.messageText ?? "Hello {name}, please check this post.");
       setScheduleDateTime(parsed.scheduleDateTime ?? "");
+      setScheduledPosts(parsed.scheduledPosts ?? []);
       setSendState({ status: "ready", index: 0, total: parsed.rows?.length ?? 0, log: ["Saved settings loaded."] });
     } catch {
       setSaveMessage("Saved settings could not be loaded.");
+    } finally {
+      setHasLoadedSavedState(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!hasLoadedSavedState) {
+      return;
+    }
+
+    const payload: SavedState = {
+      rows,
+      columns,
+      nameColumn,
+      phoneColumn,
+      apiKey,
+      templateId,
+      campaignName,
+      mediaLink,
+      messageText,
+      scheduleDateTime,
+      scheduledPosts,
+    };
+
+    window.localStorage.setItem(savedStateKey, JSON.stringify(payload));
+  }, [
+    apiKey,
+    campaignName,
+    columns,
+    hasLoadedSavedState,
+    mediaLink,
+    messageText,
+    nameColumn,
+    phoneColumn,
+    rows,
+    scheduleDateTime,
+    scheduledPosts,
+    templateId,
+  ]);
 
   function saveSettings() {
     const payload: SavedState = {
@@ -175,6 +227,7 @@ export function WhatsAppBroadcaster() {
       mediaLink,
       messageText,
       scheduleDateTime,
+      scheduledPosts,
     };
 
     window.localStorage.setItem(savedStateKey, JSON.stringify(payload));
@@ -324,10 +377,10 @@ export function WhatsAppBroadcaster() {
     setImageCheckMessage("Image URL is valid.");
 
     const log = ["Starting VirtualPrachar template messages..."];
-    const nextStatuses = validRows.map((item) => ({
+    const nextStatuses: RecipientStatus[] = validRows.map((item) => ({
       name: item.name,
       phone: item.phone,
-      status: "ready" as const,
+      status: "ready",
       detail: "Waiting",
     }));
     setRecipientStatuses(nextStatuses);
@@ -359,10 +412,14 @@ export function WhatsAppBroadcaster() {
         }),
       });
       const result = (await response.json()) as { error?: string; result?: unknown; providerResponse?: unknown };
+      let finalStatus: RecipientStatus["status"];
+      let finalDetail: string;
 
       if (!response.ok) {
         const providerDetail = result.providerResponse ? ` ${JSON.stringify(result.providerResponse)}` : "";
         const detail = `${result.error ?? "Failed"}${providerDetail}`;
+        finalStatus = "failed";
+        finalDetail = detail;
         log.push(`${item.name}: ${detail}`);
         setRecipientStatuses((current) =>
           current.map((entry) =>
@@ -372,6 +429,8 @@ export function WhatsAppBroadcaster() {
       } else {
         const status = getProviderStatus(result);
         const detail = getProviderMessage(result) || "Accepted by provider";
+        finalStatus = status;
+        finalDetail = detail;
         log.push(`${item.name}: ${status === "sent" ? "accepted by provider" : status} to ${item.phone}`);
         setRecipientStatuses((current) =>
           current.map((entry) =>
@@ -386,9 +445,31 @@ export function WhatsAppBroadcaster() {
         total: validRows.length,
         log: [...log],
       });
+
+      nextStatuses[index] = {
+        name: item.name,
+        phone: item.phone,
+        status: finalStatus,
+        detail: finalDetail,
+      };
     }
 
+    const completedRecord: ScheduledPostRecord = {
+      id: `${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      campaignName,
+      scheduleDateTime: scheduleDateTime || "Send now",
+      mediaLink: cleanMediaLink,
+      messageText,
+      recipients: nextStatuses,
+    };
+    setScheduledPosts((current) => [completedRecord, ...current].slice(0, 20));
     setSendState((current) => ({ ...current, status: "done" }));
+  }
+
+  function clearScheduledPosts() {
+    setScheduledPosts([]);
+    setSendState((current) => ({ ...current, log: ["Scheduled post history cleared."] }));
   }
 
   const canSend =
@@ -660,6 +741,47 @@ export function WhatsAppBroadcaster() {
                   {!validRows.length && !recipientStatuses.length ? (
                     <tr>
                       <td colSpan={4}>Statuses will appear here while sending.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-heading-row">
+              <h2>Scheduled post history</h2>
+              <button
+                type="button"
+                className="small-button"
+                onClick={clearScheduledPosts}
+                disabled={!scheduledPosts.length || sendState.status === "sending"}
+              >
+                Clear history
+              </button>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Schedule</th>
+                    <th>Recipients</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduledPosts.map((post) => (
+                    <tr key={post.id}>
+                      <td>{post.campaignName}</td>
+                      <td>{post.scheduleDateTime}</td>
+                      <td>{post.recipients.length}</td>
+                      <td>{post.messageText}</td>
+                    </tr>
+                  ))}
+                  {!scheduledPosts.length ? (
+                    <tr>
+                      <td colSpan={4}>Scheduled sends will be saved here after you send.</td>
                     </tr>
                   ) : null}
                 </tbody>
