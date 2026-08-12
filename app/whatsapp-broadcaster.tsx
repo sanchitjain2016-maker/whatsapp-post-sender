@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 type ContactRow = Record<string, string>;
@@ -13,6 +13,22 @@ type SendState = {
 };
 
 const defaultTemplateId = "2118674012004505";
+const savedStateKey = "virtualprachar-post-sender-settings";
+
+type SavedState = {
+  rows?: ContactRow[];
+  columns?: string[];
+  nameColumn?: string;
+  phoneColumn?: string;
+  bodyParam1Column?: string;
+  bodyParam2Column?: string;
+  bodyParam2Text?: string;
+  apiKey?: string;
+  templateId?: string;
+  campaignName?: string;
+  mediaLink?: string;
+  scheduleDateTime?: string;
+};
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d]/g, "");
@@ -64,6 +80,8 @@ export function WhatsAppBroadcaster() {
   const [templateId, setTemplateId] = useState(defaultTemplateId);
   const [campaignName, setCampaignName] = useState("personalized-post-campaign");
   const [mediaLink, setMediaLink] = useState("");
+  const [imagePreviewError, setImagePreviewError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
   const [scheduleDateTime, setScheduleDateTime] = useState("");
   const [sendState, setSendState] = useState<SendState>({
     status: "ready",
@@ -91,6 +109,53 @@ export function WhatsAppBroadcaster() {
   );
 
   const previewRecipient = validRows[0];
+  const cleanMediaLink = mediaLink.trim();
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(savedStateKey);
+    if (!saved) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(saved) as SavedState;
+      setRows(parsed.rows ?? []);
+      setColumns(parsed.columns ?? []);
+      setNameColumn(parsed.nameColumn ?? "");
+      setPhoneColumn(parsed.phoneColumn ?? "");
+      setBodyParam1Column(parsed.bodyParam1Column ?? "");
+      setBodyParam2Column(parsed.bodyParam2Column ?? "");
+      setBodyParam2Text(parsed.bodyParam2Text ?? "");
+      setApiKey(parsed.apiKey ?? "");
+      setTemplateId(parsed.templateId ?? defaultTemplateId);
+      setCampaignName(parsed.campaignName ?? "personalized-post-campaign");
+      setMediaLink(parsed.mediaLink ?? "");
+      setScheduleDateTime(parsed.scheduleDateTime ?? "");
+      setSendState({ status: "ready", index: 0, total: parsed.rows?.length ?? 0, log: ["Saved settings loaded."] });
+    } catch {
+      setSaveMessage("Saved settings could not be loaded.");
+    }
+  }, []);
+
+  function saveSettings() {
+    const payload: SavedState = {
+      rows,
+      columns,
+      nameColumn,
+      phoneColumn,
+      bodyParam1Column,
+      bodyParam2Column,
+      bodyParam2Text,
+      apiKey,
+      templateId,
+      campaignName,
+      mediaLink,
+      scheduleDateTime,
+    };
+
+    window.localStorage.setItem(savedStateKey, JSON.stringify(payload));
+    setSaveMessage("Settings saved on this browser.");
+  }
 
   async function handleExcelUpload(file: File) {
     const buffer = await file.arrayBuffer();
@@ -140,11 +205,20 @@ export function WhatsAppBroadcaster() {
   }
 
   async function sendAll() {
-    if (!apiKey.trim() || !templateId.trim() || !mediaLink.trim()) {
+    if (!apiKey.trim() || !templateId.trim() || !cleanMediaLink) {
       setSendState((current) => ({
         ...current,
         status: "error",
         log: ["Add API key, template ID, and image URL first."],
+      }));
+      return;
+    }
+
+    if (!validRows.length) {
+      setSendState((current) => ({
+        ...current,
+        status: "error",
+        log: ["Add at least one valid name and WhatsApp number."],
       }));
       return;
     }
@@ -161,7 +235,7 @@ export function WhatsAppBroadcaster() {
           apiKey,
           templateId,
           to: item.phone,
-          mediaLink,
+          mediaLink: cleanMediaLink,
           bodyParam1: item.bodyParam1,
           bodyParam2: item.bodyParam2,
           campaignName,
@@ -188,10 +262,6 @@ export function WhatsAppBroadcaster() {
   }
 
   const canSend =
-    validRows.length > 0 &&
-    Boolean(apiKey.trim()) &&
-    Boolean(templateId.trim()) &&
-    Boolean(mediaLink.trim()) &&
     sendState.status !== "sending";
 
   return (
@@ -222,6 +292,10 @@ export function WhatsAppBroadcaster() {
               Campaign name
               <input value={campaignName} onChange={(event) => setCampaignName(event.target.value)} />
             </label>
+            <button type="button" className="wide-button" onClick={saveSettings}>
+              Save settings
+            </button>
+            {saveMessage ? <p className="helper-text">{saveMessage}</p> : null}
           </div>
 
           <div className="panel">
@@ -230,7 +304,10 @@ export function WhatsAppBroadcaster() {
               Image URL
               <input
                 value={mediaLink}
-                onChange={(event) => setMediaLink(event.target.value)}
+                onChange={(event) => {
+                  setMediaLink(event.target.value);
+                  setImagePreviewError("");
+                }}
                 placeholder="https://..."
               />
             </label>
@@ -336,9 +413,22 @@ export function WhatsAppBroadcaster() {
         <section className="space-y-4">
           <div className="preview-grid">
             <div className="post-preview empty-preview">
-              {mediaLink ? (
+              {cleanMediaLink && !imagePreviewError ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={mediaLink} alt="Post preview" />
+                <img
+                  src={cleanMediaLink}
+                  alt="Post preview"
+                  onLoad={() => setImagePreviewError("")}
+                  onError={() => setImagePreviewError("Preview could not load. Use a direct public image URL.")}
+                />
+              ) : imagePreviewError ? (
+                <div className="preview-message">
+                  <strong>Image preview unavailable</strong>
+                  <span>{imagePreviewError}</span>
+                  <a href={cleanMediaLink} target="_blank" rel="noreferrer">
+                    Open image link
+                  </a>
+                </div>
               ) : (
                 <span>Image URL preview</span>
               )}
