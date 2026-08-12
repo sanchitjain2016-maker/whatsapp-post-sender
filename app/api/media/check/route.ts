@@ -2,7 +2,7 @@ type CheckPayload = {
   mediaLink?: string;
 };
 
-const allowedImageTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 
 async function fetchImageMetadata(mediaLink: string) {
   const headResponse = await fetch(mediaLink, { method: "HEAD" }).catch(() => null);
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     if (!allowedImageTypes.includes(contentType)) {
       return Response.json(
         {
-          error: `Image URL returned ${contentType || "unknown content"} instead of jpeg, png, webp, or svg.`,
+          error: `Image URL returned ${contentType || "unknown content"} instead of jpeg, png, or webp.`,
         },
         { status: 400 },
       );

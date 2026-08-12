@@ -11,7 +11,7 @@ type SendPayload = {
 
 const virtualPracharUrl =
   "https://api.virtualprachar.com/api/whatsapp-business/v1/send-template-message";
-const allowedImageTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 
 async function validateMediaLink(mediaLink: string) {
   const headResponse = await fetch(mediaLink, { method: "HEAD" }).catch(() => null);
@@ -30,7 +30,7 @@ async function validateMediaLink(mediaLink: string) {
   const contentType = response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "";
   if (!allowedImageTypes.includes(contentType)) {
     throw new Error(
-      `Image URL is returning ${contentType || "unknown content"} instead of a direct jpeg, png, webp, or svg image.`,
+      `Image URL is returning ${contentType || "unknown content"} instead of a direct jpeg, png, or webp image.`,
     );
   }
 }
