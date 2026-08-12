@@ -5,6 +5,14 @@ import * as XLSX from "xlsx";
 
 type ContactRow = Record<string, string>;
 
+type DetectedTextBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  score: number;
+};
+
 type SendState = {
   status: "ready" | "sending" | "done" | "error";
   index: number;
@@ -75,6 +83,116 @@ function getProviderStatus(result: unknown): RecipientStatus["status"] {
   return "sent";
 }
 
+function isCanvasPixelDark(data: Uint8ClampedArray, index: number) {
+  const red = data[index];
+  const green = data[index + 1];
+  const blue = data[index + 2];
+  return red < 55 && green < 55 && blue < 55;
+}
+
+function detectCanvasTextBox(data: Uint8ClampedArray, width: number, height: number): DetectedTextBox {
+  const visited = new Uint8Array(width * height);
+  const candidates: DetectedTextBox[] = [];
+  const queue = new Int32Array(width * height);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const start = y * width + x;
+      if (visited[start] || !isCanvasPixelDark(data, start * 4)) {
+        continue;
+      }
+
+      let head = 0;
+      let tail = 0;
+      let minX = x;
+      let maxX = x;
+      let minY = y;
+      let maxY = y;
+      let count = 0;
+
+      visited[start] = 1;
+      queue[tail] = start;
+      tail += 1;
+
+      while (head < tail) {
+        const current = queue[head];
+        head += 1;
+        count += 1;
+
+        const currentX = current % width;
+        const currentY = Math.floor(current / width);
+        minX = Math.min(minX, currentX);
+        maxX = Math.max(maxX, currentX);
+        minY = Math.min(minY, currentY);
+        maxY = Math.max(maxY, currentY);
+
+        const neighbors = [
+          currentX > 0 ? current - 1 : -1,
+          currentX < width - 1 ? current + 1 : -1,
+          currentY > 0 ? current - width : -1,
+          currentY < height - 1 ? current + width : -1,
+        ];
+
+        for (const next of neighbors) {
+          if (next < 0 || visited[next] || !isCanvasPixelDark(data, next * 4)) {
+            continue;
+          }
+
+          visited[next] = 1;
+          queue[tail] = next;
+          tail += 1;
+        }
+      }
+
+      const boxWidth = maxX - minX + 1;
+      const boxHeight = maxY - minY + 1;
+      const area = boxWidth * boxHeight;
+      const density = count / area;
+      const aspect = boxWidth / boxHeight;
+
+      if (
+        boxWidth >= 120 &&
+        boxWidth <= 460 &&
+        boxHeight >= 42 &&
+        boxHeight <= 170 &&
+        aspect >= 1.8 &&
+        aspect <= 6 &&
+        density >= 0.025 &&
+        density <= 0.35
+      ) {
+        const centerBonus = 1 - Math.abs(minX + boxWidth / 2 - width / 2) / width;
+        const outlineScore = boxWidth * boxHeight * (1 - density) * (1 + centerBonus);
+        candidates.push({
+          x: minX,
+          y: minY,
+          width: boxWidth,
+          height: boxHeight,
+          score: outlineScore,
+        });
+      }
+    }
+  }
+
+  const best = candidates.sort((a, b) => b.score - a.score)[0];
+  return best ?? { x: 145, y: 882, width: 220, height: 76, score: 0 };
+}
+
+function drawPersonalizedText(context: CanvasRenderingContext2D, name: string, box: DetectedTextBox) {
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  const labelFont = Math.max(10, Math.min(18, Math.floor(box.height * 0.18)));
+  const nameFont = Math.max(18, Math.min(34, Math.floor(box.height * 0.34)));
+
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = `800 ${labelFont}px Arial, Helvetica, sans-serif`;
+  context.fillStyle = "#d14a87";
+  context.fillText("BLESSINGS FOR", centerX, centerY - nameFont * 0.45);
+  context.font = `800 ${nameFont}px Arial, Helvetica, sans-serif`;
+  context.fillStyle = "#143f86";
+  context.fillText(name, centerX, centerY + nameFont * 0.55, box.width * 0.86);
+}
+
 function downloadCsv(
   rows: ContactRow[],
   nameColumn: string,
@@ -117,6 +235,7 @@ export function WhatsAppBroadcaster() {
   const [templateId, setTemplateId] = useState(defaultTemplateId);
   const [campaignName, setCampaignName] = useState("personalized-post-campaign");
   const [mediaLink, setMediaLink] = useState("");
+  const [clientPreviewUrl, setClientPreviewUrl] = useState("");
   const [imagePreviewError, setImagePreviewError] = useState("");
   const [imageCheckMessage, setImageCheckMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -149,13 +268,8 @@ export function WhatsAppBroadcaster() {
 
   const previewRecipient = validRows[0];
   const cleanMediaLink = mediaLink.trim();
-  const personalizedPreviewUrl =
-    cleanMediaLink && previewRecipient
-      ? `/api/media/personalized?src=${encodeURIComponent(cleanMediaLink)}&name=${encodeURIComponent(
-          previewRecipient.name,
-        )}`
-      : "";
-  const shouldShowSourcePreview = cleanMediaLink && (!personalizedPreviewUrl || imagePreviewError);
+  const previewName = previewRecipient?.name ?? "";
+  const shouldShowSourcePreview = cleanMediaLink && !clientPreviewUrl;
 
   useEffect(() => {
     setIsAuthenticated(window.localStorage.getItem("whatsapp-sender-auth") === "true");
@@ -220,6 +334,67 @@ export function WhatsAppBroadcaster() {
     scheduledPosts,
     templateId,
   ]);
+
+  useEffect(() => {
+    setClientPreviewUrl("");
+    setImagePreviewError("");
+
+    if (!cleanMediaLink || !previewName) {
+      return;
+    }
+
+    let isActive = true;
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+
+    image.onload = () => {
+      try {
+        const canvasSize = 1080;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          throw new Error("Preview canvas could not be started.");
+        }
+
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvasSize, canvasSize);
+
+        const scale = Math.min(canvasSize / image.naturalWidth, canvasSize / image.naturalHeight);
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        const drawX = (canvasSize - drawWidth) / 2;
+        const drawY = (canvasSize - drawHeight) / 2;
+        context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+
+        const pixels = context.getImageData(0, 0, canvasSize, canvasSize).data;
+        const box = detectCanvasTextBox(pixels, canvasSize, canvasSize);
+        drawPersonalizedText(context, previewName, box);
+
+        if (isActive) {
+          setClientPreviewUrl(canvas.toDataURL("image/png"));
+        }
+      } catch {
+        if (isActive) {
+          setImagePreviewError("Personalized preview could not be created in the browser.");
+        }
+      }
+    };
+
+    image.onerror = () => {
+      if (isActive) {
+        setImagePreviewError("Direct image URL could not load in the browser.");
+      }
+    };
+
+    image.src = cleanMediaLink;
+
+    return () => {
+      isActive = false;
+    };
+  }, [cleanMediaLink, previewName]);
 
   function saveSettings() {
     const payload: SavedState = {
@@ -667,13 +842,11 @@ export function WhatsAppBroadcaster() {
         <section className="space-y-4">
           <div className="preview-grid">
             <div className="post-preview empty-preview">
-              {personalizedPreviewUrl && !imagePreviewError ? (
+              {clientPreviewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={personalizedPreviewUrl}
+                  src={clientPreviewUrl}
                   alt="Personalized post preview"
-                  onLoad={() => setImagePreviewError("")}
-                  onError={() => setImagePreviewError("Personalized preview could not load. Showing the original image.")}
                 />
               ) : shouldShowSourcePreview ? (
                 <div className="source-preview">
@@ -683,7 +856,6 @@ export function WhatsAppBroadcaster() {
                     alt="Post background preview"
                     onError={() => setImagePreviewError("Direct image URL could not load in the browser.")}
                   />
-                  {imagePreviewError ? <span className="preview-fallback-note">{imagePreviewError}</span> : null}
                 </div>
               ) : imagePreviewError ? (
                 <div className="preview-message">
