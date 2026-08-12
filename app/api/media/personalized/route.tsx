@@ -24,30 +24,43 @@ export async function GET(request: Request) {
           width: "1080px",
           height: "1080px",
           display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
+          position: "relative",
           backgroundColor: "#ffffff",
-          backgroundImage: `url(${sourceUrl})`,
-          backgroundPosition: "center",
-          backgroundSize: "cover",
-          paddingBottom: "94px",
         }}
       >
+        <img
+          src={sourceUrl}
+          alt=""
+          width="1080"
+          height="1080"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "1080px",
+            height: "1080px",
+            objectFit: "contain",
+          }}
+        />
         <div
           style={{
-            maxWidth: "820px",
-            minWidth: "360px",
+            position: "absolute",
+            top: "116px",
+            right: "80px",
+            maxWidth: "360px",
+            minWidth: "220px",
             display: "flex",
             justifyContent: "center",
-            borderRadius: "30px",
-            backgroundColor: "rgba(17, 17, 17, 0.76)",
-            color: "#ffffff",
-            fontSize: "54px",
+            borderRadius: "22px",
+            border: "2px solid rgba(2, 50, 120, 0.18)",
+            backgroundColor: "rgba(255, 255, 255, 0.86)",
+            color: "#05245f",
+            fontSize: "42px",
             fontWeight: 800,
             lineHeight: 1.2,
-            padding: "26px 42px",
+            padding: "18px 26px",
             textAlign: "center",
             wordBreak: "break-word",
+            boxShadow: "0 12px 34px rgba(0, 0, 0, 0.12)",
           }}
         >
           {name}

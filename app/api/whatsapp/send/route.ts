@@ -35,6 +35,16 @@ async function validateMediaLink(mediaLink: string) {
   }
 }
 
+function isPersonalizedImageFromThisApp(mediaLink: string, request: Request) {
+  try {
+    const mediaUrl = new URL(mediaLink);
+    const requestUrl = new URL(request.url);
+    return mediaUrl.origin === requestUrl.origin && mediaUrl.pathname === "/api/media/personalized";
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as SendPayload;
@@ -56,7 +66,9 @@ export async function POST(request: Request) {
 
     try {
       new URL(mediaLink);
-      await validateMediaLink(mediaLink);
+      if (!isPersonalizedImageFromThisApp(mediaLink, request)) {
+        await validateMediaLink(mediaLink);
+      }
     } catch (error) {
       return Response.json(
         { error: error instanceof Error ? error.message : "Image URL is not valid." },
