@@ -101,6 +101,10 @@ function downloadCsv(
 }
 
 export function WhatsAppBroadcaster() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false);
   const [rows, setRows] = useState<ContactRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -153,6 +157,7 @@ export function WhatsAppBroadcaster() {
       : "";
 
   useEffect(() => {
+    setIsAuthenticated(window.localStorage.getItem("whatsapp-sender-auth") === "true");
     const saved = window.localStorage.getItem(savedStateKey);
     if (!saved) {
       setHasLoadedSavedState(true);
@@ -475,6 +480,61 @@ export function WhatsAppBroadcaster() {
   const canSend =
     sendState.status !== "sending";
 
+  function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (loginUsername.trim() === "admin" && loginPassword === "sanchit074") {
+      window.localStorage.setItem("whatsapp-sender-auth", "true");
+      setIsAuthenticated(true);
+      setLoginError("");
+      return;
+    }
+
+    setLoginError("Invalid username or password.");
+  }
+
+  function logout() {
+    window.localStorage.removeItem("whatsapp-sender-auth");
+    setIsAuthenticated(false);
+    setLoginPassword("");
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="login-page">
+        <form className="login-panel" onSubmit={handleLogin}>
+          <div>
+            <p className="login-kicker">Secure access</p>
+            <h1>WhatsApp Post Sender</h1>
+          </div>
+          <label>
+            Username
+            <input
+              value={loginUsername}
+              onChange={(event) => setLoginUsername(event.target.value)}
+              autoComplete="username"
+              placeholder="Username"
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(event) => setLoginPassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder="Password"
+            />
+          </label>
+          {loginError ? <p className="login-error">{loginError}</p> : null}
+          <button type="submit" className="primary wide-button">
+            Login
+          </button>
+        </form>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f4ef] text-[#20201d]">
       <section className="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[380px_1fr]">
@@ -482,6 +542,9 @@ export function WhatsAppBroadcaster() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#7f5c2d]">VirtualPrachar sender</p>
             <h1 className="mt-2 text-3xl font-semibold leading-tight">Personalized post broadcast</h1>
+            <button type="button" className="logout-button" onClick={logout}>
+              Logout
+            </button>
           </div>
 
           <div className="panel">
