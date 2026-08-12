@@ -27,22 +27,16 @@ type SavedState = {
   columns?: string[];
   nameColumn?: string;
   phoneColumn?: string;
-  bodyParam1Column?: string;
-  bodyParam2Column?: string;
-  bodyParam2Text?: string;
   apiKey?: string;
   templateId?: string;
   campaignName?: string;
   mediaLink?: string;
+  messageText?: string;
   scheduleDateTime?: string;
 };
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d]/g, "");
-}
-
-function resolveValue(row: ContactRow, column: string, fallback: string) {
-  return column ? row[column] ?? "" : fallback;
 }
 
 function getProviderMessage(result: unknown) {
@@ -74,19 +68,16 @@ function downloadCsv(
   rows: ContactRow[],
   nameColumn: string,
   phoneColumn: string,
-  bodyParam1Column: string,
-  bodyParam2Column: string,
-  bodyParam2Text: string,
+  messageText: string,
 ) {
   const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
-  const lines = [["Name", "Phone", "Body Param 1", "Body Param 2"].map(escape).join(",")];
+  const lines = [["Name", "Phone", "Message"].map(escape).join(",")];
 
   rows.forEach((row) => {
     const name = row[nameColumn] ?? "";
     const phone = normalizePhone(row[phoneColumn] ?? "");
-    const bodyParam1 = resolveValue(row, bodyParam1Column, name);
-    const bodyParam2 = resolveValue(row, bodyParam2Column, bodyParam2Text);
-    lines.push([name, phone, bodyParam1, bodyParam2].map(escape).join(","));
+    const message = messageText.replaceAll("{name}", name);
+    lines.push([name, phone, message].map(escape).join(","));
   });
 
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -103,9 +94,7 @@ export function WhatsAppBroadcaster() {
   const [columns, setColumns] = useState<string[]>([]);
   const [nameColumn, setNameColumn] = useState("");
   const [phoneColumn, setPhoneColumn] = useState("");
-  const [bodyParam1Column, setBodyParam1Column] = useState("");
-  const [bodyParam2Column, setBodyParam2Column] = useState("");
-  const [bodyParam2Text, setBodyParam2Text] = useState("");
+  const [messageText, setMessageText] = useState("Hello {name}, please check this post.");
   const [manualName, setManualName] = useState("");
   const [manualPhone, setManualPhone] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -134,16 +123,21 @@ export function WhatsAppBroadcaster() {
             row,
             name,
             phone,
-            bodyParam1: resolveValue(row, bodyParam1Column, name),
-            bodyParam2: resolveValue(row, bodyParam2Column, bodyParam2Text),
+            message: messageText.replaceAll("{name}", name),
           };
         })
         .filter((item) => item.name && item.phone.length >= 10),
-    [bodyParam1Column, bodyParam2Column, bodyParam2Text, nameColumn, phoneColumn, rows],
+    [messageText, nameColumn, phoneColumn, rows],
   );
 
   const previewRecipient = validRows[0];
   const cleanMediaLink = mediaLink.trim();
+  const personalizedPreviewUrl =
+    cleanMediaLink && previewRecipient
+      ? `/api/media/personalized?src=${encodeURIComponent(cleanMediaLink)}&name=${encodeURIComponent(
+          previewRecipient.name,
+        )}`
+      : "";
 
   useEffect(() => {
     const saved = window.localStorage.getItem(savedStateKey);
@@ -157,13 +151,11 @@ export function WhatsAppBroadcaster() {
       setColumns(parsed.columns ?? []);
       setNameColumn(parsed.nameColumn ?? "");
       setPhoneColumn(parsed.phoneColumn ?? "");
-      setBodyParam1Column(parsed.bodyParam1Column ?? "");
-      setBodyParam2Column(parsed.bodyParam2Column ?? "");
-      setBodyParam2Text(parsed.bodyParam2Text ?? "");
       setApiKey(parsed.apiKey ?? "");
       setTemplateId(parsed.templateId ?? defaultTemplateId);
       setCampaignName(parsed.campaignName ?? "personalized-post-campaign");
       setMediaLink(parsed.mediaLink ?? "");
+      setMessageText(parsed.messageText ?? "Hello {name}, please check this post.");
       setScheduleDateTime(parsed.scheduleDateTime ?? "");
       setSendState({ status: "ready", index: 0, total: parsed.rows?.length ?? 0, log: ["Saved settings loaded."] });
     } catch {
@@ -177,13 +169,11 @@ export function WhatsAppBroadcaster() {
       columns,
       nameColumn,
       phoneColumn,
-      bodyParam1Column,
-      bodyParam2Column,
-      bodyParam2Text,
       apiKey,
       templateId,
       campaignName,
       mediaLink,
+      messageText,
       scheduleDateTime,
     };
 
@@ -226,7 +216,6 @@ export function WhatsAppBroadcaster() {
     setColumns(headers);
     setNameColumn(nextNameColumn);
     setPhoneColumn(nextPhoneColumn);
-    setBodyParam1Column(nextNameColumn);
     setSendState({ status: "ready", index: 0, total: parsed.length, log: [] });
     setRecipientStatuses([]);
   }
@@ -254,7 +243,6 @@ export function WhatsAppBroadcaster() {
     setColumns(nextColumns);
     setNameColumn(nextNameColumn);
     setPhoneColumn(nextPhoneColumn);
-    setBodyParam1Column(bodyParam1Column || nextNameColumn);
     setManualName("");
     setManualPhone("");
     setSendState({ status: "ready", index: 0, total: nextRows.length, log: [`Added ${name}.`] });
@@ -283,12 +271,12 @@ export function WhatsAppBroadcaster() {
       return;
     }
 
-    const rowsWithMissingParams = validRows.filter((item) => !item.bodyParam1.trim() || !item.bodyParam2.trim());
-    if (rowsWithMissingParams.length) {
+    const rowsWithMissingMessage = validRows.filter((item) => !item.message.trim());
+    if (rowsWithMissingMessage.length) {
       setSendState((current) => ({
         ...current,
         status: "error",
-        log: ["Body param 1 and body param 2 are required for this template."],
+        log: ["Custom message cannot be empty."],
       }));
       return;
     }
@@ -325,6 +313,10 @@ export function WhatsAppBroadcaster() {
 
     for (let index = 0; index < validRows.length; index += 1) {
       const item = validRows[index];
+      const personalizedImageUrl = new URL(
+        `/api/media/personalized?src=${encodeURIComponent(cleanMediaLink)}&name=${encodeURIComponent(item.name)}`,
+        window.location.origin,
+      ).toString();
       setRecipientStatuses((current) =>
         current.map((entry) =>
           entry.phone === item.phone ? { ...entry, status: "in process", detail: "Sending request..." } : entry,
@@ -337,9 +329,9 @@ export function WhatsAppBroadcaster() {
           apiKey,
           templateId,
           to: item.phone,
-          mediaLink: cleanMediaLink,
-          bodyParam1: item.bodyParam1,
-          bodyParam2: item.bodyParam2,
+          mediaLink: personalizedImageUrl,
+          bodyParam1: item.name,
+          bodyParam2: item.message,
           campaignName,
           scheduleDateTime,
         }),
@@ -417,7 +409,7 @@ export function WhatsAppBroadcaster() {
           <div className="panel">
             <h2>Image and schedule</h2>
             <label>
-              Image URL
+              Image URL for post background
               <input
                 value={mediaLink}
                 onChange={(event) => {
@@ -479,32 +471,6 @@ export function WhatsAppBroadcaster() {
                 ))}
               </select>
             </label>
-            <label>
-              Body param 1
-              <select value={bodyParam1Column} onChange={(event) => setBodyParam1Column(event.target.value)}>
-                <option value="">Use recipient name</option>
-                {columns.map((column) => (
-                  <option key={column} value={column}>
-                    {column}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Body param 2 column
-              <select value={bodyParam2Column} onChange={(event) => setBodyParam2Column(event.target.value)}>
-                <option value="">Use fixed text</option>
-                {columns.map((column) => (
-                  <option key={column} value={column}>
-                    {column}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Body param 2 text
-              <input value={bodyParam2Text} onChange={(event) => setBodyParam2Text(event.target.value)} />
-            </label>
           </div>
 
           <div className="panel">
@@ -534,11 +500,11 @@ export function WhatsAppBroadcaster() {
         <section className="space-y-4">
           <div className="preview-grid">
             <div className="post-preview empty-preview">
-              {cleanMediaLink && !imagePreviewError ? (
+              {personalizedPreviewUrl && !imagePreviewError ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={cleanMediaLink}
-                  alt="Post preview"
+                  src={personalizedPreviewUrl}
+                  alt="Personalized post preview"
                   onLoad={() => setImagePreviewError("")}
                   onError={() => setImagePreviewError("Preview could not load. Use a direct public image URL.")}
                 />
@@ -555,18 +521,22 @@ export function WhatsAppBroadcaster() {
               )}
             </div>
             <div className="panel message-panel">
-              <h2>Template payload</h2>
+              <h2>Custom message</h2>
+              <label>
+                Message text
+                <textarea
+                  value={messageText}
+                  onChange={(event) => setMessageText(event.target.value)}
+                  placeholder="Write the full message. Use {name} where the recipient name should appear."
+                />
+              </label>
               <div className="payload-preview">
                 <span>Recipient</span>
                 <p>{previewRecipient?.phone ?? "No recipient selected"}</p>
               </div>
               <div className="payload-preview">
-                <span>Body param 1</span>
-                <p>{previewRecipient?.bodyParam1 || "Recipient name"}</p>
-              </div>
-              <div className="payload-preview">
-                <span>Body param 2</span>
-                <p>{previewRecipient?.bodyParam2 || "Fixed text or selected column"}</p>
+                <span>Message preview</span>
+                <p>{previewRecipient?.message || messageText.replaceAll("{name}", "Customer Name")}</p>
               </div>
             </div>
           </div>
@@ -578,7 +548,7 @@ export function WhatsAppBroadcaster() {
             <button
               type="button"
               onClick={() =>
-                downloadCsv(rows, nameColumn, phoneColumn, bodyParam1Column, bodyParam2Column, bodyParam2Text)
+                downloadCsv(rows, nameColumn, phoneColumn, messageText)
               }
               disabled={!rows.length}
             >
@@ -597,8 +567,7 @@ export function WhatsAppBroadcaster() {
                   <tr>
                     <th>Name</th>
                     <th>Number</th>
-                    <th>Body param 1</th>
-                    <th>Body param 2</th>
+                    <th>Message</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -606,13 +575,12 @@ export function WhatsAppBroadcaster() {
                     <tr key={`${item.phone}-${index}`}>
                       <td>{item.name}</td>
                       <td>{item.phone}</td>
-                      <td>{item.bodyParam1}</td>
-                      <td>{item.bodyParam2}</td>
+                      <td>{item.message}</td>
                     </tr>
                   ))}
                   {!validRows.length ? (
                     <tr>
-                      <td colSpan={4}>Upload Excel contacts or add a recipient manually.</td>
+                      <td colSpan={3}>Upload Excel contacts or add a recipient manually.</td>
                     </tr>
                   ) : null}
                 </tbody>
