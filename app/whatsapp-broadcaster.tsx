@@ -236,6 +236,7 @@ export function WhatsAppBroadcaster() {
   const [campaignName, setCampaignName] = useState("personalized-post-campaign");
   const [mediaLink, setMediaLink] = useState("");
   const [clientPreviewUrl, setClientPreviewUrl] = useState("");
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [imagePreviewError, setImagePreviewError] = useState("");
   const [imageCheckMessage, setImageCheckMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -269,6 +270,7 @@ export function WhatsAppBroadcaster() {
   const previewRecipient = validRows[0];
   const cleanMediaLink = mediaLink.trim();
   const previewName = previewRecipient?.name ?? "";
+  const proxiedMediaLink = cleanMediaLink ? `/api/media/source?src=${encodeURIComponent(cleanMediaLink)}` : "";
   const shouldShowSourcePreview = cleanMediaLink && !clientPreviewUrl;
 
   useEffect(() => {
@@ -338,6 +340,7 @@ export function WhatsAppBroadcaster() {
   useEffect(() => {
     setClientPreviewUrl("");
     setImagePreviewError("");
+    setIsPreviewLoading(false);
 
     if (!cleanMediaLink || !previewName) {
       return;
@@ -346,6 +349,7 @@ export function WhatsAppBroadcaster() {
     let isActive = true;
     const image = new Image();
     image.crossOrigin = "anonymous";
+    setIsPreviewLoading(true);
 
     image.onload = () => {
       try {
@@ -375,10 +379,12 @@ export function WhatsAppBroadcaster() {
 
         if (isActive) {
           setClientPreviewUrl(canvas.toDataURL("image/png"));
+          setIsPreviewLoading(false);
         }
       } catch {
         if (isActive) {
           setImagePreviewError("Personalized preview could not be created in the browser.");
+          setIsPreviewLoading(false);
         }
       }
     };
@@ -386,15 +392,16 @@ export function WhatsAppBroadcaster() {
     image.onerror = () => {
       if (isActive) {
         setImagePreviewError("Direct image URL could not load in the browser.");
+        setIsPreviewLoading(false);
       }
     };
 
-    image.src = cleanMediaLink;
+    image.src = proxiedMediaLink;
 
     return () => {
       isActive = false;
     };
-  }, [cleanMediaLink, previewName]);
+  }, [cleanMediaLink, previewName, proxiedMediaLink]);
 
   function saveSettings() {
     const payload: SavedState = {
@@ -852,10 +859,11 @@ export function WhatsAppBroadcaster() {
                 <div className="source-preview">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={cleanMediaLink}
+                    src={proxiedMediaLink || cleanMediaLink}
                     alt="Post background preview"
                     onError={() => setImagePreviewError("Direct image URL could not load in the browser.")}
                   />
+                  {isPreviewLoading ? <span className="preview-loading-note">Preparing preview...</span> : null}
                 </div>
               ) : imagePreviewError ? (
                 <div className="preview-message">

@@ -187,6 +187,19 @@ textarea:focus {
   height: 100%;
 }
 
+.preview-loading-note {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  border: 1px solid #d9c9b3;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  color: #5a4936;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 8px 10px;
+}
+
 .message-panel {
   display: grid;
   align-content: start;
