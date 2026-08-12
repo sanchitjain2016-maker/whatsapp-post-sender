@@ -1,60 +1,101 @@
 type SendPayload = {
-  token?: string;
-  phoneNumberId?: string;
+  apiKey?: string;
+  templateId?: string;
   to?: string;
-  mediaId?: string;
-  caption?: string;
+  mediaLink?: string;
+  bodyParam1?: string;
+  bodyParam2?: string;
+  campaignName?: string;
+  scheduleDateTime?: string;
 };
 
-const graphVersion = "v26.0";
+const virtualPracharUrl =
+  "https://api.virtualprachar.com/api/whatsapp-business/v1/send-template-message";
 
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as SendPayload;
-    const token = payload.token?.trim();
-    const phoneNumberId = payload.phoneNumberId?.trim();
+    const apiKey = payload.apiKey?.trim();
+    const templateId = payload.templateId?.trim();
     const to = payload.to?.replace(/[^\d]/g, "");
-    const mediaId = payload.mediaId?.trim();
-    const caption = payload.caption?.trim() ?? "";
+    const mediaLink = payload.mediaLink?.trim();
+    const bodyParam1 = payload.bodyParam1?.trim() ?? "";
+    const bodyParam2 = payload.bodyParam2?.trim() ?? "";
+    const campaignName = payload.campaignName?.trim() || "whatsapp-post-campaign";
+    const scheduleDateTime = payload.scheduleDateTime?.trim();
 
-    if (!token || !phoneNumberId || !to || !mediaId) {
+    if (!apiKey || !templateId || !to || !mediaLink) {
       return Response.json(
-        { error: "Token, phone number ID, recipient number, and media ID are required." },
+        { error: "API key, template ID, recipient number, and media link are required." },
         { status: 400 },
       );
     }
 
-    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
+    const requestBody: Record<string, unknown> = {
+      template_id: templateId,
+      recipients: [to],
+      components: [
+        {
+          type: "HEADER",
+          parameters: [
+            {
+              type: "image",
+              image: {
+                link: mediaLink,
+              },
+            },
+          ],
+        },
+        {
+          type: "BODY",
+          parameters: [
+            {
+              type: "text",
+              text: bodyParam1,
+            },
+            {
+              type: "text",
+              text: bodyParam2,
+            },
+          ],
+        },
+      ],
+      campaign_name: campaignName,
+      message_priority: 1,
+      media_link: mediaLink,
+      media_type: "image",
+    };
+
+    if (scheduleDateTime) {
+      requestBody.schedule_date_time = scheduleDateTime;
+    }
+
+    const response = await fetch(virtualPracharUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        "X-API-Key": apiKey,
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "image",
-        image: {
-          id: mediaId,
-          caption,
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
-    const result = (await response.json()) as { messages?: Array<{ id: string }>; error?: { message?: string } };
+    const result = (await response.json().catch(() => ({}))) as {
+      message?: string;
+      error?: string;
+      status?: string;
+    };
 
     if (!response.ok) {
       return Response.json(
-        { error: result.error?.message ?? "WhatsApp send failed." },
+        { error: result.error ?? result.message ?? "VirtualPrachar send failed." },
         { status: response.status || 502 },
       );
     }
 
-    return Response.json({ messageId: result.messages?.[0]?.id ?? null });
+    return Response.json({ result });
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "WhatsApp send failed." },
+      { error: error instanceof Error ? error.message : "VirtualPrachar send failed." },
       { status: 500 },
     );
   }

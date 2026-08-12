@@ -125,23 +125,38 @@ textarea:focus {
   gap: 14px;
 }
 
-.caption-preview {
+.payload-preview {
   border-left: 4px solid var(--accent);
   background: #edf7f3;
   padding: 12px;
 }
 
-.caption-preview span {
+.payload-preview + .payload-preview {
+  margin-top: 10px;
+}
+
+.payload-preview span {
   color: var(--accent-dark);
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.caption-preview p {
+.payload-preview p {
   margin: 6px 0 0;
   color: #20312d;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.empty-preview {
+  display: grid;
+  place-items: center;
+}
+
+.empty-preview span {
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .actions {
