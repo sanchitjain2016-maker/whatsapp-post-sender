@@ -264,6 +264,42 @@ td {
   line-height: 1.45;
 }
 
+.status-badge {
+  display: inline-flex;
+  min-width: 92px;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.status-ready {
+  background: #ece7dd;
+  color: #625a50;
+}
+
+.status-in-process {
+  background: #fff0c4;
+  color: #79510f;
+}
+
+.status-sent {
+  background: #dff4ec;
+  color: #1b604e;
+}
+
+.status-delivered {
+  background: #d8edff;
+  color: #17547d;
+}
+
+.status-failed {
+  background: #ffe0d8;
+  color: #8d2d1b;
+}
+
 .progress-track {
   height: 10px;
   overflow: hidden;

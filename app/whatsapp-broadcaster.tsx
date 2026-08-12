@@ -12,6 +12,13 @@ type SendState = {
   log: string[];
 };
 
+type RecipientStatus = {
+  phone: string;
+  name: string;
+  status: "ready" | "in process" | "sent" | "delivered" | "failed";
+  detail: string;
+};
+
 const defaultTemplateId = "2118674012004505";
 const savedStateKey = "virtualprachar-post-sender-settings";
 
@@ -36,6 +43,31 @@ function normalizePhone(value: string) {
 
 function resolveValue(row: ContactRow, column: string, fallback: string) {
   return column ? row[column] ?? "" : fallback;
+}
+
+function getProviderMessage(result: unknown) {
+  if (!result || typeof result !== "object") {
+    return "";
+  }
+
+  const payload = result as Record<string, unknown>;
+  const nested = payload.result && typeof payload.result === "object" ? (payload.result as Record<string, unknown>) : payload;
+  const value = nested.message ?? nested.status ?? nested.error ?? nested.id ?? nested.request_id;
+  return typeof value === "string" ? value : JSON.stringify(nested);
+}
+
+function getProviderStatus(result: unknown): RecipientStatus["status"] {
+  const text = getProviderMessage(result).toLowerCase();
+
+  if (text.includes("deliver")) {
+    return "delivered";
+  }
+
+  if (text.includes("fail") || text.includes("error") || text.includes("reject")) {
+    return "failed";
+  }
+
+  return "sent";
 }
 
 function downloadCsv(
@@ -83,6 +115,7 @@ export function WhatsAppBroadcaster() {
   const [imagePreviewError, setImagePreviewError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [scheduleDateTime, setScheduleDateTime] = useState("");
+  const [recipientStatuses, setRecipientStatuses] = useState<RecipientStatus[]>([]);
   const [sendState, setSendState] = useState<SendState>({
     status: "ready",
     index: 0,
@@ -173,6 +206,7 @@ export function WhatsAppBroadcaster() {
     setPhoneColumn(nextPhoneColumn);
     setBodyParam1Column(nextNameColumn);
     setSendState({ status: "ready", index: 0, total: parsed.length, log: [] });
+    setRecipientStatuses([]);
   }
 
   function addManualRecipient() {
@@ -202,6 +236,10 @@ export function WhatsAppBroadcaster() {
     setManualName("");
     setManualPhone("");
     setSendState({ status: "ready", index: 0, total: nextRows.length, log: [`Added ${name}.`] });
+    setRecipientStatuses((current) => [
+      ...current,
+      { name, phone, status: "ready", detail: "Ready to send" },
+    ]);
   }
 
   async function sendAll() {
@@ -224,10 +262,22 @@ export function WhatsAppBroadcaster() {
     }
 
     const log = ["Starting VirtualPrachar template messages..."];
+    const nextStatuses = validRows.map((item) => ({
+      name: item.name,
+      phone: item.phone,
+      status: "ready" as const,
+      detail: "Waiting",
+    }));
+    setRecipientStatuses(nextStatuses);
     setSendState({ status: "sending", index: 0, total: validRows.length, log });
 
     for (let index = 0; index < validRows.length; index += 1) {
       const item = validRows[index];
+      setRecipientStatuses((current) =>
+        current.map((entry) =>
+          entry.phone === item.phone ? { ...entry, status: "in process", detail: "Sending request..." } : entry,
+        ),
+      );
       const response = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -242,12 +292,25 @@ export function WhatsAppBroadcaster() {
           scheduleDateTime,
         }),
       });
-      const result = (await response.json()) as { error?: string };
+      const result = (await response.json()) as { error?: string; result?: unknown };
 
       if (!response.ok) {
-        log.push(`${item.name}: ${result.error ?? "Failed"}`);
+        const detail = result.error ?? "Failed";
+        log.push(`${item.name}: ${detail}`);
+        setRecipientStatuses((current) =>
+          current.map((entry) =>
+            entry.phone === item.phone ? { ...entry, status: "failed", detail } : entry,
+          ),
+        );
       } else {
-        log.push(`${item.name}: sent to ${item.phone}`);
+        const status = getProviderStatus(result);
+        const detail = getProviderMessage(result) || "Accepted by provider";
+        log.push(`${item.name}: ${status} to ${item.phone}`);
+        setRecipientStatuses((current) =>
+          current.map((entry) =>
+            entry.phone === item.phone ? { ...entry, status, detail } : entry,
+          ),
+        );
       }
 
       setSendState({
@@ -492,6 +555,49 @@ export function WhatsAppBroadcaster() {
                   {!validRows.length ? (
                     <tr>
                       <td colSpan={4}>Upload Excel contacts or add a recipient manually.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel">
+            <h2>Message status</h2>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Number</th>
+                    <th>Status</th>
+                    <th>Provider response</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(recipientStatuses.length
+                    ? recipientStatuses
+                    : validRows.map((item) => ({
+                        name: item.name,
+                        phone: item.phone,
+                        status: "ready" as const,
+                        detail: "Ready to send",
+                      }))
+                  ).map((item, index) => (
+                    <tr key={`${item.phone}-${item.status}-${index}`}>
+                      <td>{item.name}</td>
+                      <td>{item.phone}</td>
+                      <td>
+                        <span className={`status-badge status-${item.status.replace(" ", "-")}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td>{item.detail}</td>
+                    </tr>
+                  ))}
+                  {!validRows.length && !recipientStatuses.length ? (
+                    <tr>
+                      <td colSpan={4}>Statuses will appear here while sending.</td>
                     </tr>
                   ) : null}
                 </tbody>
