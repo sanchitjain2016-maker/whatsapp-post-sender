@@ -44,17 +44,17 @@ export async function GET(request: Request) {
         <div
           style={{
             position: "absolute",
-            top: "82px",
-            left: "426px",
-            width: "300px",
-            height: "92px",
+            top: "58px",
+            left: "418px",
+            width: "314px",
+            height: "104px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             textAlign: "center",
             wordBreak: "break-word",
-            padding: "8px 18px 16px",
+            padding: "12px 18px 14px",
           }}
         >
           <div
