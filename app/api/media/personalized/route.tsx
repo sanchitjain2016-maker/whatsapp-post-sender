@@ -44,27 +44,29 @@ export async function GET(request: Request) {
         <div
           style={{
             position: "absolute",
-            top: "94px",
-            left: "512px",
-            width: "260px",
+            top: "82px",
+            left: "426px",
+            width: "300px",
+            height: "92px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+            justifyContent: "center",
             textAlign: "center",
             wordBreak: "break-word",
+            padding: "8px 18px 16px",
           }}
         >
           <div
             style={{
               display: "flex",
-              color: "#e66216",
-              fontSize: "18px",
+              color: "#d14a87",
+              fontSize: "16px",
               fontWeight: 800,
-              letterSpacing: "0.6px",
+              letterSpacing: "0.4px",
               lineHeight: 1,
-              marginBottom: "8px",
+              marginBottom: "7px",
               textTransform: "uppercase",
-              textShadow: "0 1px 4px rgba(255, 255, 255, 0.95)",
             }}
           >
             Blessings for
@@ -72,26 +74,15 @@ export async function GET(request: Request) {
           <div
             style={{
               display: "flex",
-              color: "#1d4c94",
+              color: "#143f86",
               fontFamily: "Arial, Helvetica, sans-serif",
-              fontSize: "34px",
+              fontSize: "31px",
               fontWeight: 800,
               lineHeight: 1.05,
-              textShadow: "0 1px 5px rgba(255, 255, 255, 0.95)",
             }}
           >
             {name}
           </div>
-          <div
-            style={{
-              width: "174px",
-              height: "3px",
-              display: "flex",
-              marginTop: "9px",
-              borderRadius: "999px",
-              background: "linear-gradient(90deg, #ec6c16, #d91b88, #0753a3)",
-            }}
-          />
         </div>
       </div>
     ),
