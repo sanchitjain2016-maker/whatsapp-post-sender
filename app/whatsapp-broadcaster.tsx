@@ -113,6 +113,7 @@ export function WhatsAppBroadcaster() {
   const [campaignName, setCampaignName] = useState("personalized-post-campaign");
   const [mediaLink, setMediaLink] = useState("");
   const [imagePreviewError, setImagePreviewError] = useState("");
+  const [imageCheckMessage, setImageCheckMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [scheduleDateTime, setScheduleDateTime] = useState("");
   const [recipientStatuses, setRecipientStatuses] = useState<RecipientStatus[]>([]);
@@ -190,6 +191,27 @@ export function WhatsAppBroadcaster() {
     setSaveMessage("Settings saved on this browser.");
   }
 
+  async function checkImageUrl() {
+    setImageCheckMessage("Checking image URL...");
+    const response = await fetch("/api/media/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaLink: cleanMediaLink }),
+    });
+    const result = (await response.json()) as {
+      ok?: boolean;
+      error?: string;
+      contentType?: string;
+    };
+
+    if (!response.ok || !result.ok) {
+      setImageCheckMessage(result.error ?? "Image URL check failed.");
+      return;
+    }
+
+    setImageCheckMessage(`Image URL is valid (${result.contentType}).`);
+  }
+
   async function handleExcelUpload(file: File) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer);
@@ -261,6 +283,26 @@ export function WhatsAppBroadcaster() {
       return;
     }
 
+    setImageCheckMessage("Checking image URL before send...");
+    const mediaCheckResponse = await fetch("/api/media/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaLink: cleanMediaLink }),
+    });
+    const mediaCheckResult = (await mediaCheckResponse.json()) as { ok?: boolean; error?: string };
+
+    if (!mediaCheckResponse.ok || !mediaCheckResult.ok) {
+      setImageCheckMessage(mediaCheckResult.error ?? "Image URL check failed.");
+      setSendState((current) => ({
+        ...current,
+        status: "error",
+        log: [mediaCheckResult.error ?? "Image URL check failed."],
+      }));
+      return;
+    }
+
+    setImageCheckMessage("Image URL is valid.");
+
     const log = ["Starting VirtualPrachar template messages..."];
     const nextStatuses = validRows.map((item) => ({
       name: item.name,
@@ -305,7 +347,7 @@ export function WhatsAppBroadcaster() {
       } else {
         const status = getProviderStatus(result);
         const detail = getProviderMessage(result) || "Accepted by provider";
-        log.push(`${item.name}: ${status} to ${item.phone}`);
+        log.push(`${item.name}: ${status === "sent" ? "accepted by provider" : status} to ${item.phone}`);
         setRecipientStatuses((current) =>
           current.map((entry) =>
             entry.phone === item.phone ? { ...entry, status, detail } : entry,
@@ -370,10 +412,15 @@ export function WhatsAppBroadcaster() {
                 onChange={(event) => {
                   setMediaLink(event.target.value);
                   setImagePreviewError("");
+                  setImageCheckMessage("");
                 }}
                 placeholder="https://..."
               />
             </label>
+            <button type="button" className="wide-button" onClick={() => void checkImageUrl()}>
+              Check image URL
+            </button>
+            {imageCheckMessage ? <p className="helper-text">{imageCheckMessage}</p> : null}
             <label>
               Schedule date time
               <input

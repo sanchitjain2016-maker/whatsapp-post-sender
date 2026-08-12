@@ -11,6 +11,29 @@ type SendPayload = {
 
 const virtualPracharUrl =
   "https://api.virtualprachar.com/api/whatsapp-business/v1/send-template-message";
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+
+async function validateMediaLink(mediaLink: string) {
+  const headResponse = await fetch(mediaLink, { method: "HEAD" }).catch(() => null);
+  const response =
+    headResponse?.ok
+      ? headResponse
+      : await fetch(mediaLink, {
+          method: "GET",
+          headers: { Range: "bytes=0-1023" },
+        });
+
+  if (!response.ok) {
+    throw new Error(`Image URL could not be reached by the server. Status ${response.status}.`);
+  }
+
+  const contentType = response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "";
+  if (!allowedImageTypes.includes(contentType)) {
+    throw new Error(
+      `Image URL is returning ${contentType || "unknown content"} instead of a direct jpeg, png, or webp image.`,
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -27,6 +50,16 @@ export async function POST(request: Request) {
     if (!apiKey || !templateId || !to || !mediaLink) {
       return Response.json(
         { error: "API key, template ID, recipient number, and media link are required." },
+        { status: 400 },
+      );
+    }
+
+    try {
+      new URL(mediaLink);
+      await validateMediaLink(mediaLink);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Image URL is not valid." },
         { status: 400 },
       );
     }
