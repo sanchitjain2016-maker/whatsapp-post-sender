@@ -44,41 +44,50 @@ export async function GET(request: Request) {
         <div
           style={{
             position: "absolute",
-            top: "136px",
-            right: "96px",
-            maxWidth: "330px",
+            top: "94px",
+            left: "512px",
+            width: "260px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            color: "#05245f",
-            fontSize: "34px",
-            fontWeight: 800,
-            letterSpacing: "1px",
-            lineHeight: 1.1,
             textAlign: "center",
             wordBreak: "break-word",
-            textShadow: "0 2px 6px rgba(255, 255, 255, 0.9)",
           }}
         >
           <div
             style={{
               display: "flex",
               color: "#e66216",
-              fontSize: "20px",
-              fontWeight: 700,
-              marginBottom: "6px",
+              fontSize: "18px",
+              fontWeight: 800,
+              letterSpacing: "0.6px",
+              lineHeight: 1,
+              marginBottom: "8px",
               textTransform: "uppercase",
+              textShadow: "0 1px 4px rgba(255, 255, 255, 0.95)",
             }}
           >
             Blessings for
           </div>
-          <div style={{ display: "flex" }}>{name}</div>
           <div
             style={{
-              width: "160px",
-              height: "4px",
               display: "flex",
-              marginTop: "10px",
+              color: "#1d4c94",
+              fontFamily: "Arial, Helvetica, sans-serif",
+              fontSize: "34px",
+              fontWeight: 800,
+              lineHeight: 1.05,
+              textShadow: "0 1px 5px rgba(255, 255, 255, 0.95)",
+            }}
+          >
+            {name}
+          </div>
+          <div
+            style={{
+              width: "174px",
+              height: "3px",
+              display: "flex",
+              marginTop: "9px",
               borderRadius: "999px",
               background: "linear-gradient(90deg, #ec6c16, #d91b88, #0753a3)",
             }}
