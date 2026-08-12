@@ -252,6 +252,28 @@ export function WhatsAppBroadcaster() {
     ]);
   }
 
+  function deleteContact(indexToDelete: number) {
+    const rowToDelete = validRows[indexToDelete];
+    const nextRows = rows.filter((row) => row !== rowToDelete?.row);
+
+    setRows(nextRows);
+    setRecipientStatuses((current) =>
+      current.filter((entry) => entry.phone !== rowToDelete?.phone),
+    );
+    setSendState({
+      status: "ready",
+      index: 0,
+      total: nextRows.length,
+      log: rowToDelete ? [`Removed ${rowToDelete.name}.`] : [],
+    });
+  }
+
+  function clearContacts() {
+    setRows([]);
+    setRecipientStatuses([]);
+    setSendState({ status: "ready", index: 0, total: 0, log: ["All contacts removed."] });
+  }
+
   async function sendAll() {
     if (!apiKey.trim() || !templateId.trim() || !cleanMediaLink) {
       setSendState((current) => ({
@@ -554,6 +576,9 @@ export function WhatsAppBroadcaster() {
             >
               Export CSV
             </button>
+            <button type="button" onClick={clearContacts} disabled={!rows.length || sendState.status === "sending"}>
+              Clear contacts
+            </button>
             <button type="button" className="primary" onClick={() => void sendAll()} disabled={!canSend}>
               Send on WhatsApp
             </button>
@@ -568,6 +593,7 @@ export function WhatsAppBroadcaster() {
                     <th>Name</th>
                     <th>Number</th>
                     <th>Message</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -576,11 +602,21 @@ export function WhatsAppBroadcaster() {
                       <td>{item.name}</td>
                       <td>{item.phone}</td>
                       <td>{item.message}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="small-button danger-button"
+                          onClick={() => deleteContact(index)}
+                          disabled={sendState.status === "sending"}
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {!validRows.length ? (
                     <tr>
-                      <td colSpan={3}>Upload Excel contacts or add a recipient manually.</td>
+                      <td colSpan={4}>Upload Excel contacts or add a recipient manually.</td>
                     </tr>
                   ) : null}
                 </tbody>

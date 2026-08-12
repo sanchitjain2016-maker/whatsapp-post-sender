@@ -227,6 +227,17 @@ button.primary {
   margin-top: 14px;
 }
 
+.small-button {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 0.82rem;
+}
+
+.danger-button {
+  border-color: #f0b4aa;
+  color: #8d2d1b;
+}
+
 button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
