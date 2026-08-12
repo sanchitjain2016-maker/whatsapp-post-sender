@@ -44,26 +44,45 @@ export async function GET(request: Request) {
         <div
           style={{
             position: "absolute",
-            top: "116px",
-            right: "80px",
-            maxWidth: "360px",
-            minWidth: "220px",
+            top: "136px",
+            right: "96px",
+            maxWidth: "330px",
             display: "flex",
-            justifyContent: "center",
-            borderRadius: "22px",
-            border: "2px solid rgba(2, 50, 120, 0.18)",
-            backgroundColor: "rgba(255, 255, 255, 0.86)",
+            flexDirection: "column",
+            alignItems: "center",
             color: "#05245f",
-            fontSize: "42px",
+            fontSize: "34px",
             fontWeight: 800,
-            lineHeight: 1.2,
-            padding: "18px 26px",
+            letterSpacing: "1px",
+            lineHeight: 1.1,
             textAlign: "center",
             wordBreak: "break-word",
-            boxShadow: "0 12px 34px rgba(0, 0, 0, 0.12)",
+            textShadow: "0 2px 6px rgba(255, 255, 255, 0.9)",
           }}
         >
-          {name}
+          <div
+            style={{
+              display: "flex",
+              color: "#e66216",
+              fontSize: "20px",
+              fontWeight: 700,
+              marginBottom: "6px",
+              textTransform: "uppercase",
+            }}
+          >
+            Blessings for
+          </div>
+          <div style={{ display: "flex" }}>{name}</div>
+          <div
+            style={{
+              width: "160px",
+              height: "4px",
+              display: "flex",
+              marginTop: "10px",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #ec6c16, #d91b88, #0753a3)",
+            }}
+          />
         </div>
       </div>
     ),
